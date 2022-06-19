@@ -40,6 +40,12 @@ spec:
         - --leader-elect
         image: controller:latest
         name: manager
+        env:
+          - name: GH_PERSONAL_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: github-token
+                key: token
         securityContext:
           allowPrivilegeEscalation: false
         # TODO(user): uncomment for common cases that do not require escalating privileges

@@ -3,4 +3,6 @@ kind: GithubIssue
 metadata:
   name: githubissue-sample
 spec:
-  # TODO(user): Add fields here
+  repo: "https://github.com/mzeevi/githubissues-operator"
+  title: "test issue #8"
+  description: "this is now test issue 8"
