@@ -11,7 +11,7 @@ configMapGenerator:
 
 secretGenerator:
 - literals:
-  - token=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
+  - token=
   name: github-token
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
