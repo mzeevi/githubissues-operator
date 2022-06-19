@@ -1,0 +1,6 @@
+apiVersion: training.redhat.com/v1alpha1
+kind: GithubIssue
+metadata:
+  name: githubissue-sample
+spec:
+  # TODO(user): Add fields here
