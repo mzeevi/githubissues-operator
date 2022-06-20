@@ -87,6 +87,10 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	// create github client and use personal access token to authenticate
 	ghClient := r.createGHClient(ctx)
+	if ghClient == nil {
+		err := fmt.Errorf("unable to create github client")
+		return ctrl.Result{}, err
+	}
 
 	// examine DeletionTimestamp to determine if object is under deletion
 	if !githubissue.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -340,7 +344,7 @@ func (r *GithubIssueReconciler) getExistingIssue(issues []*github.Issue, title s
 // a problem may be in the status code (i.e. 403 Status Code) or general
 func (r *GithubIssueReconciler) getIssuesInRepo(ctx context.Context, ghClient *github.Client, owner, repo string) ([]*github.Issue, error) {
 	log := log.FromContext(ctx)
-	issues, response, err := ghClient.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{})
+	issues, response, err := ghClient.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{State: "all"})
 
 	if err != nil {
 		log.Error(err, "unable to fetch issues from github")
