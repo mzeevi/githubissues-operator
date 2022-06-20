@@ -27,6 +27,8 @@ import (
 	"github.com/google/go-github/v45/github"
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,7 +44,15 @@ type GithubIssueReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-const ghIssueFinalizer string = "redhat.com/githubissue-finalizer"
+const (
+	ghIssueFinalizer string = "redhat.com/githubissue-finalizer"
+
+	issueOpenConditionType   string = "IssueOpen"
+	issueOpenConditionReason string = "IssueInOpenState"
+
+	issueHasPRConditionType   string = "IssueHasPR"
+	issueHasPRConditionReason string = "PullRequestExists"
+)
 
 //+kubebuilder:rbac:groups=training.redhat.com,resources=githubissues,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=training.redhat.com,resources=githubissues/status,verbs=get;update;patch
@@ -110,20 +120,79 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	issue := r.getExistingIssue(issues, title)
 
 	if issue == nil {
-		if err := r.createNewIssue(ctx, ghClient, title, description, owner, repo); err != nil {
+		createdIssue, err := r.createNewIssue(ctx, ghClient, title, description, owner, repo)
+		if err != nil {
 			log.Error(err, "failed to create new issue on github repository", "owner", owner, "repo", repo)
 			return ctrl.Result{}, err
 		}
-	} else {
-		if issueBody := issue.GetBody(); issueBody != description {
-			if err := r.updateIssueDescription(ctx, ghClient, issue, description, owner, repo); err != nil {
-				log.Error(err, "failed to update issue on github repository", "owner", owner, "repo", repo, "issue", issue)
-				return ctrl.Result{}, err
-			}
+		issue = createdIssue
+	}
+
+	if issueBody := issue.GetBody(); issueBody != description {
+		if err := r.updateIssueDescription(ctx, ghClient, issue, description, owner, repo); err != nil {
+			log.Error(err, "failed to update issue on github repository", "owner", owner, "repo", repo, "issue", issue)
+			return ctrl.Result{}, err
 		}
 	}
 
+	// set conditions on issue
+	log.Info("Setting conditions on object")
+	r.setIssueOpenCondition(issue, &githubissue)
+	r.setIssueHasPRCondition(issue, &githubissue)
+
+	// update status
+	log.Info("Updating githubissue status")
+	if err := r.Status().Update(ctx, &githubissue); err != nil {
+		log.Error(err, "unable to update githubissue status")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
+}
+
+// this function sets the condition of the issue that indicates
+// whether the issue has pull requests
+func (r *GithubIssueReconciler) setIssueHasPRCondition(issue *github.Issue, githubissue *trainingv1alpha1.GithubIssue) {
+	hasPR := issue.GetPullRequestLinks()
+	conditionStatus := metav1.ConditionTrue
+	message := "The issue has a PR"
+
+	if hasPR == nil {
+		conditionStatus = metav1.ConditionFalse
+		message = "The issue does not have a PR"
+
+	}
+
+	issueCondition := metav1.Condition{
+		Type:    issueHasPRConditionType,
+		Status:  conditionStatus,
+		Reason:  issueHasPRConditionReason,
+		Message: message,
+	}
+
+	apimeta.SetStatusCondition(&githubissue.Status.Conditions, issueCondition)
+}
+
+// this function sets the condition of the issue that indicates
+// whether the issue is currently in open state
+func (r *GithubIssueReconciler) setIssueOpenCondition(issue *github.Issue, githubissue *trainingv1alpha1.GithubIssue) {
+	issueState := issue.GetState()
+	conditionStatus := metav1.ConditionTrue
+	message := "The issue is in open state"
+
+	if issueState == "closed" {
+		conditionStatus = metav1.ConditionFalse
+		message = "The issue is in open state"
+	}
+
+	issueCondition := metav1.Condition{
+		Type:    issueOpenConditionType,
+		Status:  conditionStatus,
+		Reason:  issueOpenConditionReason,
+		Message: message,
+	}
+
+	apimeta.SetStatusCondition(&githubissue.Status.Conditions, issueCondition)
 }
 
 // this function handles the deletion of a finalizer to an object
@@ -205,7 +274,7 @@ func (r *GithubIssueReconciler) closeIssue(ctx context.Context, ghClient *github
 // this function creates a new issue
 // IssueRequest is initiated with what needs to be updated and
 // not setting a value for a parameter means keeping the current parameters the same
-func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, ghClient *github.Client, title, description, owner, repo string) error {
+func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, ghClient *github.Client, title, description, owner, repo string) (*github.Issue, error) {
 	log := log.FromContext(ctx)
 
 	issueRequest := github.IssueRequest{
@@ -213,19 +282,19 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, ghClient *gi
 		Body:  &description,
 	}
 
-	_, response, err := ghClient.Issues.Create(ctx, owner, repo, &issueRequest)
+	issue, response, err := ghClient.Issues.Create(ctx, owner, repo, &issueRequest)
 
 	if err != nil {
 		log.Error(err, "unable to create issue")
-		return err
+		return issue, err
 	}
 
 	if response.StatusCode != http.StatusCreated {
 		err := fmt.Errorf("unexpected status code: %d", response.StatusCode)
-		return err
+		return issue, err
 	}
 
-	return nil
+	return issue, nil
 
 }
 
