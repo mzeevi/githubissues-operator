@@ -10,12 +10,12 @@ configMapGenerator:
   name: manager-config
 
 secretGenerator:
-- literals:
-  - token=
+- envs:
+  - .env.secret
   name: github-token
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
   newName: localhost/meytarzeevi/githubissue
-  newTag: v0.3
+  newTag: v0.5

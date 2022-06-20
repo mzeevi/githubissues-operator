@@ -1,3 +1,4 @@
+make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 # GNU Make 4.2.1
 # Built for x86_64-redhat-linux-gnu
 # Copyright (C) 1988-2016 Free Software Foundation, Inc.
@@ -5,12 +6,10 @@
 # This is free software: you are free to change and redistribute it.
 # There is NO WARRANTY, to the extent permitted by law.
 
-# Make data base, printed on Sun Jun 19 14:22:41 2022
+# Make data base, printed on Mon Jun 20 09:12:56 2022
 
 # Variables
 
-# 'override' directive
-GNUMAKEFLAGS := 
 # automatic
 <D = $(patsubst %/,%,$(dir $<))
 # automatic
@@ -18,14 +17,13 @@ GNUMAKEFLAGS :=
 # makefile (from 'Makefile', line 65)
 .SHELLFLAGS = -ec
 # environment
- 
 VSCODE_LOG_NATIVE = false
 # automatic
 ?D = $(patsubst %/,%,$(dir $?))
 # automatic
 @D = $(patsubst %/,%,$(dir $@))
 # environment
-XAUTHORITY = /root/.xauthZ17sxt
+XAUTHORITY = /root/.xauthNOvHCP
 # automatic
 @F = $(notdir $@)
 # makefile
@@ -35,19 +33,19 @@ SHELL = /usr/bin/env bash -o pipefail
 # environment
 VSCODE_NLS_CONFIG = {"locale":"en-us","availableLanguages":{},"_languagePackSupport":true}
 # environment
-_ = /bin/make
-# environment
-SUDO_COMMAND = /bin/su
+_ = /usr/bin/make
 # environment
 LESSOPEN = ||/usr/bin/lesspipe.sh %s
 # makefile (from 'Makefile', line 153)
 LOCALBIN = $(shell pwd)/bin
 # makefile (from 'Makefile', line 1)
 MAKEFILE_LIST :=  Makefile
+# environment
+HISTCONTROL = ignoredups
 # makefile (from 'Makefile', line 198)
 OPM = ./bin/opm
-# environment
-USERNAME = user
+# 'override' directive
+GNUMAKEFLAGS := 
 # environment
 XDG_DATA_DIRS = /root/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
 # environment
@@ -57,9 +55,9 @@ VERSION = 0.0.1
 # environment
 VSCODE_VERBOSE_LOGGING = true
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /tmp/vscode-ipc-4c2bea5e-2070-4000-8169-21f8ce26368f.sock
+VSCODE_IPC_HOOK_EXTHOST = /tmp/vscode-ipc-32693d1d-8a24-482f-a99d-c4b1617123ef.sock
 # environment
-VSCODE_CWD = /home/user/githubissues-operator
+VSCODE_CWD = /root
 # environment
 GOPROXY = https://proxy.golang.org,direct
 # environment
@@ -67,7 +65,7 @@ GOMODCACHE = /root/go/pkg/mod
 # default
 MAKE_HOST := x86_64-redhat-linux-gnu
 # environment
-PATH = /sbin:/bin:/usr/sbin:/usr/bin
+PATH = /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin
 # makefile (from 'Makefile', line 166)
 KUSTOMIZE_INSTALL_SCRIPT = "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 # environment
@@ -109,15 +107,11 @@ VSCODE_CLI = 1
 # environment
 VSCODE_CODE_CACHE_PATH = /root/code/CachedData/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5
 # environment
-SUDO_USER = user
-# environment
 LOGNAME = root
 # environment
 TERM = xterm-256color
 # environment
-SUDO_GID = 1000
-# environment
-APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = 1
 # environment
 ELECTRON_NO_ATTACH_CONSOLE = 1
 # environment
@@ -130,8 +124,6 @@ HOSTNAME = localhost.localdomain
 MAKELEVEL := 0
 # environment
 SSH_ASKPASS = /usr/libexec/openssh/gnome-ssh-askpass
-# environment
-COLORTERM = truecolor
 # default
 MAKE = $(MAKE_COMMAND)
 # default
@@ -140,8 +132,6 @@ MAKECMDGOALS := all
 SHLVL = 3
 # makefile (from 'Makefile', line 39)
 BUNDLE_GEN_FLAGS = -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
-# environment
-SUDO_UID = 1000
 # default
 MAKE_VERSION := 4.2.1
 # environment
@@ -175,7 +165,7 @@ MFLAGS = -pqrR
 # automatic
 *D = $(patsubst %/,%,$(dir $*))
 # environment
-MAIL = /var/spool/mail/user
+MAIL = /var/spool/mail/root
 # makefile (from 'Makefile', line 163)
 KUSTOMIZE_VERSION = v3.8.7
 # automatic
@@ -227,9 +217,9 @@ which_declare = declare -f
 # makefile (from 'Makefile', line 52)
 ENVTEST_K8S_VERSION = 1.24.1
 # environment
-VSCODE_PID = 74890
+VSCODE_PID = 7308
 # variable set hash-table stats:
-# Load=107/1024=10%, Rehash=0, Collisions=17/227=7%
+# Load=102/1024=10%, Rehash=0, Collisions=13/222=6%
 
 # Pattern-specific Variable Values
 
@@ -237,9 +227,9 @@ VSCODE_PID = 74890
 
 # Directories
 
-# . (device 66309, inode 3138735): 17 files, no impossibilities.
+# . (device 66309, inode 3138735): 19 files, no impossibilities.
 
-# 17 files, no impossibilities in 1 directories.
+# 19 files, no impossibilities in 1 directories.
 
 # Implicit Rules
 
@@ -286,6 +276,7 @@ docker-build: test
 #  recipe to execute (from 'Makefile', line 121):
 	docker build -t ${IMG} .
 
+ 
 .PHONY: all help manifests generate fmt vet test build run docker-build docker-push install uninstall deploy undeploy kustomize controller-gen envtest bundle bundle-build bundle-push opm catalog-build catalog-push
 #  Implicit rule search has not been done.
 #  Modification time never checked.
@@ -295,7 +286,6 @@ opm:
 #  Phony target (prerequisite of .PHONY).
 #  Implicit rule search has not been done.
 #  File does not exist.
- 
 #  File has not been updated.
 #  recipe to execute (from 'Makefile', line 202):
 	@{ \
@@ -397,7 +387,7 @@ kustomize: /home/user/githubissues-operator/bin/kustomize
 
 /home/user/githubissues-operator/bin:
 #  Implicit rule search has not been done.
-#  Last modified 2022-06-19 14:22:16.87642146
+#  Last modified 2022-06-19 23:07:53.501833937
 #  File has been updated.
 #  Successfully updated.
 #  recipe to execute (from 'Makefile', line 155):
@@ -441,7 +431,7 @@ manifests: controller-gen
 /home/user/githubissues-operator/bin/controller-gen: /home/user/githubissues-operator/bin
 #  Implicit rule search has not been done.
 #  Implicit/static pattern stem: ''
-#  Last modified 2022-06-19 14:22:16.875421457
+#  Last modified 2022-06-19 23:07:48.410147744
 #  File has been updated.
 #  Needs to be updated (-q is set).
 # automatic
@@ -538,12 +528,12 @@ install: manifests kustomize
 
 # No general ('VPATH' variable) search path.
 
-# strcache buffers: 1 (0) / strings = 50 / storage = 581 B / avg = 11 B
-# current buf: size = 8162 B / used = 581 B / count = 50 / avg = 11 B
+# strcache buffers: 1 (0) / strings = 52 / storage = 596 B / avg = 11 B
+# current buf: size = 8162 B / used = 596 B / count = 52 / avg = 11 B
 
-# strcache performance: lookups = 186 / hit rate = 73%
+# strcache performance: lookups = 188 / hit rate = 72%
 # hash-table stats:
-# Load=50/8192=1%, Rehash=0, Collisions=4/186=2%
-# Finished Make data base on Sun Jun 19 14:22:41 2022
+# Load=52/8192=1%, Rehash=0, Collisions=4/188=2%
+# Finished Make data base on Mon Jun 20 09:12:56 2022
 
  
