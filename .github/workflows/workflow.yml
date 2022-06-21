@@ -24,6 +24,6 @@ jobs:
         
     - name: test controller
       env:
-        GH_PERSONAL_TOKEN: ${{ secret.clientSecret }} 
+        GH_PERSONAL_TOKEN: ${{ secrets.clientSecret }} 
       run: | 
         make test
