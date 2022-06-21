@@ -18,95 +18,95 @@ package controllers
 
 import (
 	"context"
-	"math/rand"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/google/go-github/v45/github"
 	ghmock "github.com/migueleliasweb/go-github-mock/src/mock"
 	trainingv1alpha1 "github.com/mzeevi/githubissues-operator/api/v1alpha1"
-	"github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const (
-	testRepoName     = "testRepo"
-	testOwnerName    = "testOrg"
-	testRepo         = "https://github.com/" + testOwnerName + "/" + testRepoName
-	testNamespace    = "default"
-	charset          = "abcdefghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	randStringLength = 10
-	timeout          = time.Second * 10
-	duration         = time.Second * 10
-	interval         = time.Millisecond * 250
-)
+var _ = Describe("GithubIssue controller", func() {
+	Context("When updating GithubIssue objects", func() {
+		name := "e2e-test-" + GenerateRandomString()
+		title := "e2e-test-" + GenerateRandomString()
+		description := GenerateRandomString()
+		repoName := "https://github.com/mzeevi/githubissues-operator"
 
-func setupClient(obj []client.Object) (client.Client, *runtime.Scheme, error) {
+		It("Should update the status of the object and its conditions", func() {
+			By("Creating a new GithubIssue object")
 
-	s := scheme.Scheme
-	if err := trainingv1alpha1.AddToScheme(s); err != nil {
-		return nil, s, err
-	}
+			ctx := context.Background()
 
-	// create fake client
-	cl := fake.NewClientBuilder().WithObjects(obj...).Build()
+			githubIssue := &trainingv1alpha1.GithubIssue{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: "default",
+				},
+				Spec: trainingv1alpha1.GithubIssueSpec{
+					Repo:        repoName,
+					Title:       title,
+					Description: description,
+				},
+			}
 
-	return cl, s, nil
+			Expect(k8sClient.Create(ctx, githubIssue)).Should(Succeed())
 
-}
+			githubIssueLookupKey := types.NamespacedName{
+				Name:      githubIssue.ObjectMeta.Name,
+				Namespace: githubIssue.ObjectMeta.Namespace,
+			}
 
-func generateRandomString() string {
-	var seededRand *rand.Rand = rand.New(
-		rand.NewSource(time.Now().UnixNano()))
+			createdGithubIssue := trainingv1alpha1.GithubIssue{}
+			k8sClient.Get(ctx, githubIssueLookupKey, &createdGithubIssue)
+			// check the conditions of the object
+			Eventually(func() bool {
+				k8sClient.Get(ctx, githubIssueLookupKey, &createdGithubIssue)
+				return apimeta.IsStatusConditionTrue(createdGithubIssue.Status.Conditions, issueOpenConditionType)
+			}, timeout, interval).Should(BeTrue())
 
-	b := make([]byte, randStringLength)
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
-	}
-	return string(b)
-}
+			By("Updating the decscription of an issue")
+			newDescription := "new description"
+			createdGithubIssue.Spec.Description = newDescription
+			Expect(k8sClient.Update(ctx, &createdGithubIssue)).Should(Succeed())
 
-func generateGithubIssueObject() *trainingv1alpha1.GithubIssue {
-	name := generateRandomString()
-	title := generateRandomString()
-	description := generateRandomString()
+			Eventually(func() bool {
+				k8sClient.Get(ctx, githubIssueLookupKey, &createdGithubIssue)
+				return createdGithubIssue.Spec.Description == newDescription
+			}, timeout, interval).Should(BeTrue())
 
-	githubIssue := &trainingv1alpha1.GithubIssue{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "default",
-		},
-		Spec: trainingv1alpha1.GithubIssueSpec{
-			Repo:        testRepo,
-			Title:       title,
-			Description: description,
-		},
-	}
+			By("Closing an issue by deleting the object")
+			Expect(k8sClient.Delete(ctx, &createdGithubIssue)).Should(Succeed())
 
-	return githubIssue
-}
+			deletedGithubIssue := trainingv1alpha1.GithubIssue{}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, githubIssueLookupKey, &deletedGithubIssue)
+				return errors.IsNotFound(err)
+			}, timeout, interval).Should(BeTrue())
+		})
+	})
+})
 
 func TestFailedCreateIssue(t *testing.T) {
 	g := NewGomegaWithT(t)
-	RegisterFailHandler(ginkgo.Fail)
+	RegisterFailHandler(Fail)
 
 	// create context and set environment variable
 	ctx := context.Background()
 
 	// create githubissue object
-	githubIssue := generateGithubIssueObject()
+	githubIssue := GenerateGithubIssueObject()
 
 	obj := []client.Object{githubIssue}
-	cl, s, err := setupClient(obj)
+	cl, s, err := SetupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// create mock githubissue client with mock data
@@ -163,16 +163,16 @@ func TestFailedCreateIssue(t *testing.T) {
 
 func TestFailedUpdateIssue(t *testing.T) {
 	g := NewGomegaWithT(t)
-	RegisterFailHandler(ginkgo.Fail)
+	RegisterFailHandler(Fail)
 
 	// create context and set environment variable
 	ctx := context.Background()
 
 	// create githubissue object
-	githubIssue := generateGithubIssueObject()
+	githubIssue := GenerateGithubIssueObject()
 
 	obj := []client.Object{githubIssue}
-	cl, s, err := setupClient(obj)
+	cl, s, err := SetupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// create mock githubissue client with mock data
@@ -258,16 +258,16 @@ func TestFailedUpdateIssue(t *testing.T) {
 
 func TestCloseIssueOnDelete(t *testing.T) {
 	g := NewGomegaWithT(t)
-	RegisterFailHandler(ginkgo.Fail)
+	RegisterFailHandler(Fail)
 
 	// create context and set environment variable
 	ctx := context.Background()
 
 	// create githubissue object
-	githubIssue := generateGithubIssueObject()
+	githubIssue := GenerateGithubIssueObject()
 
 	obj := []client.Object{githubIssue}
-	cl, s, err := setupClient(obj)
+	cl, s, err := SetupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// create mock githubissue client with mock data
@@ -371,16 +371,16 @@ func TestCloseIssueOnDelete(t *testing.T) {
 
 func TestCreateIssueIfDoesntExist(t *testing.T) {
 	g := NewGomegaWithT(t)
-	RegisterFailHandler(ginkgo.Fail)
+	RegisterFailHandler(Fail)
 
 	// create context
 	ctx := context.Background()
 
 	// create githubissue object
-	githubIssue := generateGithubIssueObject()
+	githubIssue := GenerateGithubIssueObject()
 
 	obj := []client.Object{githubIssue}
-	cl, s, err := setupClient(obj)
+	cl, s, err := SetupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// create mock githubissue client with mock data
@@ -440,12 +440,12 @@ func TestCreateIssueIfDoesntExist(t *testing.T) {
 
 func TestExtractOwnerRepoInfo(t *testing.T) {
 	g := NewGomegaWithT(t)
-	RegisterFailHandler(ginkgo.Fail)
+	RegisterFailHandler(Fail)
 
-	githubIssue := generateGithubIssueObject()
+	githubIssue := GenerateGithubIssueObject()
 
 	obj := []client.Object{githubIssue}
-	cl, s, err := setupClient(obj)
+	cl, s, err := SetupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
 	ghClient := github.NewClient(&http.Client{})

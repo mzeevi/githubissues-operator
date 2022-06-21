@@ -17,26 +17,23 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	"golang.org/x/oauth2"
+
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	trainingv1alpha1 "github.com/mzeevi/githubissues-operator/api/v1alpha1"
+	"github.com/mzeevi/githubissues-operator/controllers"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	"github.com/google/go-github/v45/github"
-	trainingv1alpha1 "github.com/mzeevi/githubissues-operator/api/v1alpha1"
-	"github.com/mzeevi/githubissues-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -44,18 +41,6 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
-
-func getGHClient(ctx context.Context) *github.Client {
-	ghPersonalAccessToken := os.Getenv("GH_PERSONAL_TOKEN")
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: ghPersonalAccessToken},
-	)
-
-	tc := oauth2.NewClient(ctx, ts)
-	ghClient := github.NewClient(tc)
-
-	return ghClient
-}
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -112,7 +97,7 @@ func main() {
 	if err = (&controllers.GithubIssueReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
-		GithubClient: getGHClient(ctx),
+		GithubClient: controllers.GetGithubClient(ctx),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GithubIssue")
 		os.Exit(1)

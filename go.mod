@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/google/go-github/v45 v45.1.0
+	github.com/joho/godotenv v1.4.0
 	github.com/migueleliasweb/go-github-mock v0.0.8
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.18.1
