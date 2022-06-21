@@ -15,12 +15,7 @@ jobs:
     - uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go-version }}
-    - uses: actions/checkout@v3
-    
-    - name: set up environment
-      shell: bash
-      env:
-        GH_PERSONAL_TOKEN: ${{ secret.clientSecret }}        
+    - uses: actions/checkout@v3       
     
     - name: run make fmt and vet
       run: |
@@ -28,4 +23,7 @@ jobs:
         make vet
         
     - name: test controller
-      run: make test
+      env:
+        GH_PERSONAL_TOKEN: ${{ secret.clientSecret }} 
+      run: | 
+        make test
