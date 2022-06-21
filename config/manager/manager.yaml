@@ -45,7 +45,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: github-token
-                key: token
+                key: GH_PERSONAL_TOKEN
         securityContext:
           allowPrivilegeEscalation: false
         # TODO(user): uncomment for common cases that do not require escalating privileges

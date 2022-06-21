@@ -33,7 +33,8 @@ type GithubIssueSpec struct {
 
 // GithubIssueStatus defines the observed state of GithubIssue
 type GithubIssueStatus struct {
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	ActiveDescription string             `json:"active_description,omitempty"`
+	Conditions        []metav1.Condition `json:"conditions,omitempty"`
 
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file

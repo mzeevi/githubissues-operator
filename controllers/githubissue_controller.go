@@ -20,12 +20,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
 	"github.com/google/go-github/v45/github"
-	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +39,8 @@ import (
 // GithubIssueReconciler reconciles a GithubIssue object
 type GithubIssueReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme       *runtime.Scheme
+	GithubClient *github.Client
 }
 
 const (
@@ -86,7 +85,11 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	// create github client and use personal access token to authenticate
-	ghClient := r.createGHClient(ctx)
+	ghClient := r.GithubClient
+	if ghClient == nil {
+		err := fmt.Errorf("github client is not available")
+		return ctrl.Result{}, err
+	}
 
 	// examine DeletionTimestamp to determine if object is under deletion
 	if !githubissue.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -128,12 +131,15 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		issue = createdIssue
 	}
 
-	if issueBody := issue.GetBody(); issueBody != description {
+	body := issue.GetBody()
+	if body != description {
 		if err := r.updateIssueDescription(ctx, ghClient, issue, description, owner, repo); err != nil {
 			log.Error(err, "failed to update issue on github repository", "owner", owner, "repo", repo, "issue", issue)
 			return ctrl.Result{}, err
 		}
+		body = description
 	}
+	githubissue.Status.ActiveDescription = body
 
 	// set conditions on issue
 	log.Info("Setting conditions on object")
@@ -289,7 +295,7 @@ func (r *GithubIssueReconciler) createNewIssue(ctx context.Context, ghClient *gi
 		return issue, err
 	}
 
-	if response.StatusCode != http.StatusCreated {
+	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
 		err := fmt.Errorf("unexpected status code: %d", response.StatusCode)
 		return issue, err
 	}
@@ -340,7 +346,7 @@ func (r *GithubIssueReconciler) getExistingIssue(issues []*github.Issue, title s
 // a problem may be in the status code (i.e. 403 Status Code) or general
 func (r *GithubIssueReconciler) getIssuesInRepo(ctx context.Context, ghClient *github.Client, owner, repo string) ([]*github.Issue, error) {
 	log := log.FromContext(ctx)
-	issues, response, err := ghClient.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{})
+	issues, response, err := ghClient.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{State: "all"})
 
 	if err != nil {
 		log.Error(err, "unable to fetch issues from github")
@@ -368,20 +374,6 @@ func (r *GithubIssueReconciler) extractOwnerRepoInfo(githubissue *trainingv1alph
 	repo := ownerRepoSlice[1]
 
 	return owner, repo
-}
-
-// this function uses the personal access token to authenticate
-// and returns a github client to use in reconcile
-func (r *GithubIssueReconciler) createGHClient(ctx context.Context) *github.Client {
-	ghPersonalAccessToken := os.Getenv("GH_PERSONAL_TOKEN")
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: ghPersonalAccessToken},
-	)
-
-	tc := oauth2.NewClient(ctx, ts)
-	ghClient := github.NewClient(tc)
-
-	return ghClient
 }
 
 // SetupWithManager sets up the controller with the Manager.
