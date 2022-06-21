@@ -1,0 +1,31 @@
+name: test githubissue controller
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  test_controller:
+    strategy:
+      matrix:
+        go-version: [1.17.x]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.go-version }}
+    - uses: actions/checkout@v3
+    
+    - name: set up environment
+      shell: bash
+      env:
+        GH_PERSONAL_TOKEN: ${{ secret.clientSecret }}        
+    
+    - name: run make fmt and vet
+      run: |
+        make fmt
+        make vet
+        
+    - name: test controller
+      run: make test
