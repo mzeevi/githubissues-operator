@@ -131,12 +131,15 @@ func (r *GithubIssueReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		issue = createdIssue
 	}
 
-	if issueBody := issue.GetBody(); issueBody != description {
+	body := issue.GetBody()
+	if body != description {
 		if err := r.updateIssueDescription(ctx, ghClient, issue, description, owner, repo); err != nil {
 			log.Error(err, "failed to update issue on github repository", "owner", owner, "repo", repo, "issue", issue)
 			return ctrl.Result{}, err
 		}
+		body = description
 	}
+	githubissue.Status.ActiveDescription = body
 
 	// set conditions on issue
 	log.Info("Setting conditions on object")

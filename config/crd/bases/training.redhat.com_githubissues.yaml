@@ -46,6 +46,8 @@ spec:
           status:
             description: GithubIssueStatus defines the observed state of GithubIssue
             properties:
+              active_description:
+                type: string
               conditions:
                 items:
                   description: "Condition contains details for one aspect of the current

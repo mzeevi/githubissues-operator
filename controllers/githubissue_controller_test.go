@@ -78,9 +78,10 @@ var _ = Describe("GithubIssue controller", func() {
 			createdGithubIssue.Spec.Description = newDescription
 			Expect(k8sClient.Update(ctx, &createdGithubIssue)).Should(Succeed())
 
+			updatedGithubIssue := trainingv1alpha1.GithubIssue{}
 			Eventually(func() bool {
-				k8sClient.Get(ctx, githubIssueLookupKey, &createdGithubIssue)
-				return createdGithubIssue.Spec.Description == newDescription
+				k8sClient.Get(ctx, githubIssueLookupKey, &updatedGithubIssue)
+				return updatedGithubIssue.Status.ActiveDescription == newDescription
 			}, timeout, interval).Should(BeTrue())
 
 			By("Closing an issue by deleting the object")
