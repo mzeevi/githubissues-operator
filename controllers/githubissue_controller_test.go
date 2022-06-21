@@ -19,9 +19,15 @@ package controllers
 import (
 	"context"
 	"math/rand"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/google/go-github/v45/github"
+	ghmock "github.com/migueleliasweb/go-github-mock/src/mock"
+	trainingv1alpha1 "github.com/mzeevi/githubissues-operator/api/v1alpha1"
+	"github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,15 +36,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/joho/godotenv"
-	trainingv1alpha1 "github.com/mzeevi/githubissues-operator/api/v1alpha1"
-	"github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 )
 
 const (
-	testRepo         = "https://github.com/mzeevi/githubissues-operator"
+	testRepoName     = "testRepo"
+	testOwnerName    = "testOrg"
+	testRepo         = "https://github.com/" + testOwnerName + "/" + testRepoName
 	testNamespace    = "default"
 	charset          = "abcdefghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	randStringLength = 10
@@ -92,14 +95,12 @@ func generateGithubIssueObject() *trainingv1alpha1.GithubIssue {
 	return githubIssue
 }
 
-func TestCloseIssueOnDelete(t *testing.T) {
+func TestFailedCreateIssue(t *testing.T) {
 	g := NewGomegaWithT(t)
 	RegisterFailHandler(ginkgo.Fail)
 
 	// create context and set environment variable
 	ctx := context.Background()
-	err := godotenv.Load("../config/manager/.env.secret")
-	g.Expect(err).ToNot(HaveOccurred())
 
 	// create githubissue object
 	githubIssue := generateGithubIssueObject()
@@ -108,8 +109,227 @@ func TestCloseIssueOnDelete(t *testing.T) {
 	cl, s, err := setupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
+	// create mock githubissue client with mock data
+	wantedError := "creating issue failed"
+	mockedHTTPClient := ghmock.NewMockedHTTPClient(
+		ghmock.WithRequestMatch(
+			ghmock.GetReposIssuesByOwnerByRepo,
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String("Issue 1"),
+					Body:  github.String("Issue 1 body"),
+					State: github.String("open"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("closed"),
+				},
+			},
+		),
+		ghmock.WithRequestMatchHandler(
+			ghmock.PostReposIssuesByOwnerByRepo,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ghmock.WriteError(
+					w,
+					http.StatusInternalServerError,
+					wantedError,
+				)
+			}),
+		),
+	)
+
+	ghClient := github.NewClient(mockedHTTPClient)
+
 	// create a NamespaceLabelReconciler object with the scheme and fake client
-	r := &GithubIssueReconciler{cl, s}
+	r := &GithubIssueReconciler{cl, s, ghClient}
+
+	// mock request to simulate Reconcile() being called on an event for a
+	// watched resource .
+	req := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      githubIssue.ObjectMeta.Name,
+			Namespace: githubIssue.ObjectMeta.Namespace,
+		},
+	}
+	_, err = r.Reconcile(ctx, req)
+	ghErr, ok := err.(*github.ErrorResponse)
+
+	g.Expect(ok).To(BeTrue())
+	g.Expect(ghErr.Message).To(Equal(wantedError))
+}
+
+func TestFailedUpdateIssue(t *testing.T) {
+	g := NewGomegaWithT(t)
+	RegisterFailHandler(ginkgo.Fail)
+
+	// create context and set environment variable
+	ctx := context.Background()
+
+	// create githubissue object
+	githubIssue := generateGithubIssueObject()
+
+	obj := []client.Object{githubIssue}
+	cl, s, err := setupClient(obj)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// create mock githubissue client with mock data
+	wantedError := "updating description of issue failed"
+	mockedHTTPClient := ghmock.NewMockedHTTPClient(
+		ghmock.WithRequestMatch(
+			ghmock.GetReposIssuesByOwnerByRepo,
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String(githubIssue.Spec.Title),
+					Body:  github.String(githubIssue.Spec.Description),
+					State: github.String("open"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("open"),
+				},
+			},
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String(githubIssue.Spec.Title),
+					Body:  github.String(githubIssue.Spec.Description),
+					State: github.String("open"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("open"),
+				},
+			},
+		),
+		ghmock.WithRequestMatchHandler(
+			ghmock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ghmock.WriteError(
+					w,
+					http.StatusInternalServerError,
+					wantedError,
+				)
+			}),
+		),
+	)
+
+	ghClient := github.NewClient(mockedHTTPClient)
+
+	// create a GithubIssueReconciler object with the scheme and fake client
+	r := &GithubIssueReconciler{cl, s, ghClient}
+
+	// mock request to simulate reconcile() being called on an event for a
+	// watched resource .
+	req := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      githubIssue.ObjectMeta.Name,
+			Namespace: githubIssue.ObjectMeta.Namespace,
+		},
+	}
+
+	res, err := r.Reconcile(ctx, req)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(res).ToNot(BeNil())
+
+	// call reconcile again for update to take place
+	githubIssueReconciled := trainingv1alpha1.GithubIssue{}
+	err = cl.Get(ctx, req.NamespacedName, &githubIssueReconciled)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	githubIssueReconciled.Spec.Description = "updated description"
+	err = cl.Update(ctx, &githubIssueReconciled)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	_, err = r.Reconcile(ctx, req)
+	ghErr, ok := err.(*github.ErrorResponse)
+
+	g.Expect(ok).To(BeTrue())
+	g.Expect(ghErr.Message).To(Equal(wantedError))
+
+}
+
+func TestCloseIssueOnDelete(t *testing.T) {
+	g := NewGomegaWithT(t)
+	RegisterFailHandler(ginkgo.Fail)
+
+	// create context and set environment variable
+	ctx := context.Background()
+
+	// create githubissue object
+	githubIssue := generateGithubIssueObject()
+
+	obj := []client.Object{githubIssue}
+	cl, s, err := setupClient(obj)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	// create mock githubissue client with mock data
+	mockedHTTPClient := ghmock.NewMockedHTTPClient(
+		ghmock.WithRequestMatch(
+			ghmock.GetReposIssuesByOwnerByRepo,
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String(githubIssue.Spec.Title),
+					Body:  github.String(githubIssue.Spec.Description),
+					State: github.String("open"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("open"),
+				},
+			},
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String(githubIssue.Spec.Title),
+					Body:  github.String(githubIssue.Spec.Description),
+					State: github.String("open"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("open"),
+				},
+			},
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String(githubIssue.Spec.Title),
+					Body:  github.String(githubIssue.Spec.Description),
+					State: github.String("closed"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("open"),
+				},
+			},
+		),
+		ghmock.WithRequestMatch(
+			ghmock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+			github.IssueRequest{
+				Title: github.String(githubIssue.Spec.Title),
+				Body:  github.String(githubIssue.Spec.Description),
+			},
+		),
+	)
+
+	ghClient := github.NewClient(mockedHTTPClient)
+
+	// create a GithubIssueReconciler object with the scheme and fake client
+	r := &GithubIssueReconciler{cl, s, ghClient}
 
 	// mock request to simulate reconcile() being called on an event for a
 	// watched resource .
@@ -136,10 +356,6 @@ func TestCloseIssueOnDelete(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(res).ToNot(BeNil())
 
-	// get issue from github client
-	ghClient := r.createGHClient(ctx)
-	g.Expect(ghClient).ToNot(BeNil())
-
 	owner, repo := r.extractOwnerRepoInfo(&githubIssueReconciled)
 	title := githubIssueReconciled.Spec.Title
 
@@ -157,10 +373,8 @@ func TestCreateIssueIfDoesntExist(t *testing.T) {
 	g := NewGomegaWithT(t)
 	RegisterFailHandler(ginkgo.Fail)
 
-	// create context and set environment variable
+	// create context
 	ctx := context.Background()
-	err := godotenv.Load("../config/manager/.env.secret")
-	g.Expect(err).ToNot(HaveOccurred())
 
 	// create githubissue object
 	githubIssue := generateGithubIssueObject()
@@ -169,8 +383,38 @@ func TestCreateIssueIfDoesntExist(t *testing.T) {
 	cl, s, err := setupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
+	// create mock githubissue client with mock data
+	mockedHTTPClient := ghmock.NewMockedHTTPClient(
+		ghmock.WithRequestMatch(
+			ghmock.GetReposIssuesByOwnerByRepo,
+			[]github.Issue{
+				{
+					ID:    github.Int64(123),
+					Title: github.String("Issue 1"),
+					Body:  github.String("Issue 1 body"),
+					State: github.String("open"),
+				},
+				{
+					ID:    github.Int64(456),
+					Title: github.String("Issue 2"),
+					Body:  github.String("Issue 2 body"),
+					State: github.String("closed"),
+				},
+			},
+		),
+		ghmock.WithRequestMatch(
+			ghmock.PostReposIssuesByOwnerByRepo,
+			github.IssueRequest{
+				Title: github.String(githubIssue.Spec.Title),
+				Body:  github.String(githubIssue.Spec.Description),
+			},
+		),
+	)
+
+	ghClient := github.NewClient(mockedHTTPClient)
+
 	// create a NamespaceLabelReconciler object with the scheme and fake client
-	r := &GithubIssueReconciler{cl, s}
+	r := &GithubIssueReconciler{cl, s, ghClient}
 
 	// mock request to simulate Reconcile() being called on an event for a
 	// watched resource .
@@ -204,27 +448,16 @@ func TestExtractOwnerRepoInfo(t *testing.T) {
 	cl, s, err := setupClient(obj)
 	g.Expect(err).ToNot(HaveOccurred())
 
+	ghClient := github.NewClient(&http.Client{})
+
 	// create a NamespaceLabelReconciler object with the scheme and fake client
-	r := &GithubIssueReconciler{cl, s}
+	r := &GithubIssueReconciler{cl, s, ghClient}
 
 	owner, repo := r.extractOwnerRepoInfo(githubIssue)
-	expectedOwner := "mzeevi"
-	expectedRepo := "githubissues-operator"
+	expectedOwner := testOwnerName
+	expectedRepo := testRepoName
 
 	g.Expect(owner).To(Equal(expectedOwner))
 	g.Expect(repo).To(Equal(expectedRepo))
 
-}
-
-func TestCreateGHClient(t *testing.T) {
-	g := NewGomegaWithT(t)
-	RegisterFailHandler(ginkgo.Fail)
-
-	cl, s, err := setupClient([]client.Object{})
-	g.Expect(err).ToNot(HaveOccurred())
-
-	// create a NamespaceLabelReconciler object with the scheme and fake client
-	r := &GithubIssueReconciler{cl, s}
-
-	g.Expect(r.createGHClient(context.Background())).ToNot(BeNil())
 }
