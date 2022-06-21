@@ -38,7 +38,7 @@ var _ = Describe("GithubIssue controller", func() {
 	Context("When updating GithubIssue objects", func() {
 		name := "e2e-test-" + GenerateRandomString()
 		title := "e2e-test-" + GenerateRandomString()
-		description := GenerateRandomString()
+		description := "e2e-test-" + GenerateRandomString()
 		repoName := "https://github.com/mzeevi/githubissues-operator"
 
 		It("Should update the status of the object and its conditions", func() {
@@ -74,7 +74,7 @@ var _ = Describe("GithubIssue controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			By("Updating the decscription of an issue")
-			newDescription := "new description"
+			newDescription := "updated-" + description
 			createdGithubIssue.Spec.Description = newDescription
 			Expect(k8sClient.Update(ctx, &createdGithubIssue)).Should(Succeed())
 

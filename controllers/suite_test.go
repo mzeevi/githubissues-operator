@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -72,8 +73,10 @@ var _ = BeforeSuite(func() {
 	var err error
 
 	// set environment variables
-	err = godotenv.Load("../config/manager/.env.secret")
-	Expect(err).ToNot(HaveOccurred())
+	if os.Getenv("GH_PERSONAL_TOKEN") == "" {
+		err = godotenv.Load("../.env.secret")
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	// cfg is defined in this file globally.
 	cfg, err = testEnv.Start()

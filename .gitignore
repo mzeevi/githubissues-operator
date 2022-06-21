@@ -9,7 +9,7 @@ bin
 testbin/*
 
 # Secrets and tokens
-config/manager/.env*
+*.env*
 
 # Test binary, build with `go test -c`
 *.test
