@@ -67,7 +67,7 @@ var _ = Describe("GithubIssue controller", func() {
 
 			createdGithubIssue := trainingv1alpha1.GithubIssue{}
 			k8sClient.Get(ctx, githubIssueLookupKey, &createdGithubIssue)
-			// check the conditions of the object
+			// check the conditions of the object status
 			Eventually(func() bool {
 				k8sClient.Get(ctx, githubIssueLookupKey, &createdGithubIssue)
 				return apimeta.IsStatusConditionTrue(createdGithubIssue.Status.Conditions, issueOpenConditionType)
